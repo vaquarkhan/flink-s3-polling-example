@@ -20,8 +20,10 @@ package com.sam.pocs;
 
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import software.amazon.awssdk.regions.Region;
 
-import java.util.Properties;
+import java.time.Instant;
+import java.util.Map;
 
 /**
  * Skeleton for a Flink Streaming Job.
@@ -47,14 +49,22 @@ public class StreamingJob {
         // how do we set something up as source? how to follow source-sink paradigm
 
 
-
         // set up the streaming execution environment
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-        DataStream<String> refData = env.addSource(new S3DataSource("bucket", "bucket"));
-        refData.print();
+
+        String bucket = "bucket";
+        String prefix = "prefix";
+        Instant lastModified = Instant.MIN;
+        String region = Region.US_EAST_1.toString();
+
+        DataStream<Map<String, String>> refData = env.addSource(new S3DataSource<>(bucket, prefix, lastModified, region, new MapDeserializer()));
+
+        refData.print("********\n");
 
         // execute program
         env.execute("Flink Streaming Java API Skeleton");
     }
+
+
 }

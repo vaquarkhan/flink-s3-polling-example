@@ -2,51 +2,96 @@ package com.sam.pocs;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.flink.api.common.serialization.DeserializationSchema;
+import org.apache.flink.api.common.serialization.SerializationSchema;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.java.typeutils.ResultTypeQueryable;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.regions.Region;
 
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
 import java.io.InputStream;
-import java.nio.file.Paths;
+import java.time.Instant;
+import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 
-public class S3DataSource implements SourceFunction<String> {
+// Make extendable for different output types
+// or maybe take in a type and have objectmapper convert to that type
+public class S3DataSource<T> implements SourceFunction<T>, ResultTypeQueryable {
 
-    private volatile boolean isRunning = true;
-    private String bucket;
-    private String key;
+  private volatile boolean isRunning = true;
+  // double if volatile keeps this static value threadsafe
+  // how to handle multithreading?
+  private volatile Instant lastModified;
+  private String bucket;
+  // can we have dynamic prefix?
+  private String prefix;
+  // add default max
+  private String region;
+  private DeserializationSchema<T> valueDeserializer;
 
-    public S3DataSource(String bucket, String key) {
-        this.bucket = bucket;
-        this.key = key;
-    }
+  // add filter function
+  // add prefix (can we have dynamic prefix?)
+  // add max keys to list
+  public S3DataSource(
+      String bucket,
+      String prefix,
+      Instant lastModified,
+      String region,
+      DeserializationSchema<T> valueDeserializer) {
+    this.bucket = bucket;
+    this.prefix = prefix;
+    this.lastModified = lastModified;
+    this.region = region;
+    this.valueDeserializer = valueDeserializer;
+  }
 
-    @Override
-    public void run(SourceContext<String> ctx) throws Exception {
-        while (isRunning) {
-            Region region = Region.US_EAST_1;
-            S3Client s3 = S3Client.builder().region(region).build();
+  @Override
+  public void run(SourceContext<T> ctx) throws Exception {
+    while (isRunning) {
+      S3Client s3 = S3Client.builder().region(Region.of(region)).build();
 
-            InputStream s3Object = s3.getObject(GetObjectRequest.builder().bucket(bucket).key(key).build(),
-                    ResponseTransformer.toInputStream());
+      List<S3Object> s3Objects =
+          s3.listObjects(
+                  ListObjectsRequest.builder().bucket(bucket).prefix(prefix).delimiter("/").build())
+              .contents();
+      Instant maxLastModified = Instant.MIN;
 
-            ObjectMapper objectMapper = new ObjectMapper();
-            Map<String, String> jsonMap = objectMapper.readValue(s3Object, new TypeReference<Map>(){});
-
-            ctx.collect(jsonMap.toString());
-
-            System.out.println(jsonMap.toString());
-
-            Thread.sleep(100);
+      for (S3Object object : s3Objects) {
+        if (object.size() >= 1 && lastModified.isBefore(object.lastModified())) {
+          if (maxLastModified.isBefore(object.lastModified())) {
+            maxLastModified = object.lastModified();
+          }
+          byte[] file =
+              s3.getObject(
+                      GetObjectRequest.builder().bucket(bucket).key(object.key()).build(),
+                      ResponseTransformer.toBytes())
+                  .asByteArray();
+          T result = valueDeserializer.deserialize(file);
+          ctx.collect(result);
         }
-    }
+      }
+      if (!Instant.MIN.equals(maxLastModified)) {
+        lastModified = maxLastModified;
+      }
 
-    @Override
-    public void cancel() {
-        isRunning = false;
+      Thread.sleep(100);
     }
+  }
+
+  @Override
+  public void cancel() {
+    isRunning = false;
+  }
+
+  @Override
+  public TypeInformation getProducedType() {
+    return valueDeserializer.getProducedType();
+  }
 }
