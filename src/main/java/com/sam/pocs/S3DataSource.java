@@ -1,9 +1,6 @@
 package com.sam.pocs;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.api.common.serialization.DeserializationSchema;
-import org.apache.flink.api.common.serialization.SerializationSchema;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.typeutils.ResultTypeQueryable;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
@@ -15,11 +12,8 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
-import java.io.InputStream;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
-import java.util.Properties;
 
 // Make extendable for different output types
 // or maybe take in a type and have objectmapper convert to that type
