@@ -19,6 +19,8 @@ import java.util.List;
 // or maybe take in a type and have objectmapper convert to that type
 public class S3DataSource<T> implements SourceFunction<T>, ResultTypeQueryable {
 
+  private static final long DEFAULT_POLLING_INTERVAL_MS = 1000L;
+
   private volatile boolean isRunning = true;
   // double if volatile keeps this static value threadsafe
   // how to handle multithreading?
@@ -29,6 +31,7 @@ public class S3DataSource<T> implements SourceFunction<T>, ResultTypeQueryable {
   // add default max
   private String region;
   private DeserializationSchema<T> valueDeserializer;
+  private long pollingInterval;
 
   // add filter function
   // add prefix (can we have dynamic prefix?)
@@ -44,6 +47,22 @@ public class S3DataSource<T> implements SourceFunction<T>, ResultTypeQueryable {
     this.lastModified = lastModified;
     this.region = region;
     this.valueDeserializer = valueDeserializer;
+    this.pollingInterval = DEFAULT_POLLING_INTERVAL_MS;
+  }
+
+  public S3DataSource(
+      String bucket,
+      String prefix,
+      Instant lastModified,
+      String region,
+      DeserializationSchema<T> valueDeserializer,
+      long pollingInterval) {
+    this.bucket = bucket;
+    this.prefix = prefix;
+    this.lastModified = lastModified;
+    this.region = region;
+    this.valueDeserializer = valueDeserializer;
+    this.pollingInterval = pollingInterval;
   }
 
   @Override
@@ -67,15 +86,14 @@ public class S3DataSource<T> implements SourceFunction<T>, ResultTypeQueryable {
                       GetObjectRequest.builder().bucket(bucket).key(object.key()).build(),
                       ResponseTransformer.toBytes())
                   .asByteArray();
-          T result = valueDeserializer.deserialize(file);
-          ctx.collect(result);
+          ctx.collect(valueDeserializer.deserialize(file));
         }
       }
       if (!Instant.MIN.equals(maxLastModified)) {
         lastModified = maxLastModified;
       }
 
-      Thread.sleep(100);
+      Thread.sleep(pollingInterval);
     }
   }
 
