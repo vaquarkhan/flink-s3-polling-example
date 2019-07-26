@@ -41,14 +41,6 @@ public class StreamingJob {
 
     public static void main(String[] args) throws Exception {
 
-        // create dag
-        // read from s3 | maybe just list objects for now
-        // -- print some signal that it worked if possible
-        // sleep
-
-        // how do we set something up as source? how to follow source-sink paradigm
-
-
         // set up the streaming execution environment
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
@@ -60,14 +52,6 @@ public class StreamingJob {
 
 //        DataStream<Map<String, String>> refData = env.addSource(new LastModifiedS3DataSourceFunction<>(bucket, prefix, lastModified, region, new MapDeserializer()));
         DataStream<Map<String, String>> refData = env.addSource(new S3DataSourceFunction<>(bucket, prefix, region, new MapDeserializer()));
-
-        // for every record, get the static reference numbers
-        // read from json. if the static doesn't exist, populate
-        // if exists check if its still valid.
-        // from transactionUtils, call different utils: refdatautils
-        // RefDataUtils refresh every whatever options : time, if the last date detected is different from current date
-        // need to handle concurrency
-
 
 
         refData.print("********\n");
