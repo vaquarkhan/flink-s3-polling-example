@@ -15,42 +15,30 @@ import software.amazon.awssdk.services.s3.model.S3Object;
 import java.time.Instant;
 import java.util.List;
 
-// Make extendable for different output types
-// or maybe take in a type and have objectmapper convert to that type
-public class S3DataSource<T> implements SourceFunction<T>, ResultTypeQueryable {
+public class LastModifiedS3DataSourceFunction<T> implements SourceFunction<T>, ResultTypeQueryable {
 
-  private static final long DEFAULT_POLLING_INTERVAL_MS = 1000L;
+  private static final long DEFAULT_POLLING_INTERVAL_MS = 100L;
 
   private volatile boolean isRunning = true;
-  // double if volatile keeps this static value threadsafe
   // how to handle multithreading?
   private volatile Instant lastModified;
   private String bucket;
-  // can we have dynamic prefix?
   private String prefix;
-  // add default max
   private String region;
   private DeserializationSchema<T> valueDeserializer;
   private long pollingInterval;
 
   // add filter function
-  // add prefix (can we have dynamic prefix?)
-  // add max keys to list
-  public S3DataSource(
+  public LastModifiedS3DataSourceFunction(
       String bucket,
       String prefix,
       Instant lastModified,
       String region,
       DeserializationSchema<T> valueDeserializer) {
-    this.bucket = bucket;
-    this.prefix = prefix;
-    this.lastModified = lastModified;
-    this.region = region;
-    this.valueDeserializer = valueDeserializer;
-    this.pollingInterval = DEFAULT_POLLING_INTERVAL_MS;
+    this(bucket, prefix, lastModified, region, valueDeserializer, DEFAULT_POLLING_INTERVAL_MS);
   }
 
-  public S3DataSource(
+  public LastModifiedS3DataSourceFunction(
       String bucket,
       String prefix,
       Instant lastModified,
@@ -65,6 +53,21 @@ public class S3DataSource<T> implements SourceFunction<T>, ResultTypeQueryable {
     this.pollingInterval = pollingInterval;
   }
 
+  //TODO review considerations
+  // For using LastModified
+  // - s3 list objects api only returns up to 100 objects https://docs.aws.amazon.com/cli/latest/reference/s3api/list-objects.html
+  // - will have to do something like this https://stackoverflow.com/a/27931839
+  // - what is the performance impact of querying all keys once there are *many* objects in the bucket? is this just short term solution?
+  // For moving files to processed folder once done
+  // - there will be other consumers of data from the s3 bucket. We can't modify the source bucket.
+  // - A potential solution for ^^ is to have a separate staging folder which the flink job will read from.
+  //    Once processing is done for a given extract, the file will be deleted from the staging folder.
+  //    Cons:
+  //    - There will be a separate staging folder for the flink jobs
+  //    - Another process will have to populate the staging folder or Finacle will have to also send files to this staging folder.
+  //    Pros:
+  //    - The Flink DAG will be very straightforward. All it would have to do is poll the s3 path
+
   @Override
   public void run(SourceContext<T> ctx) throws Exception {
     while (isRunning) {
@@ -72,7 +75,7 @@ public class S3DataSource<T> implements SourceFunction<T>, ResultTypeQueryable {
 
       List<S3Object> s3Objects =
           s3.listObjects(
-                  ListObjectsRequest.builder().bucket(bucket).prefix(prefix).delimiter("/").build())
+                  ListObjectsRequest.builder().bucket(bucket).prefix(prefix).build())
               .contents();
       Instant maxLastModified = Instant.MIN;
 

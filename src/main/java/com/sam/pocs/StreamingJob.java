@@ -58,7 +58,17 @@ public class StreamingJob {
         Instant lastModified = Instant.MIN;
         String region = Region.US_EAST_1.toString();
 
-        DataStream<Map<String, String>> refData = env.addSource(new S3DataSource<>(bucket, prefix, lastModified, region, new MapDeserializer()));
+//        DataStream<Map<String, String>> refData = env.addSource(new LastModifiedS3DataSourceFunction<>(bucket, prefix, lastModified, region, new MapDeserializer()));
+        DataStream<Map<String, String>> refData = env.addSource(new S3DataSourceFunction<>(bucket, prefix, region, new MapDeserializer()));
+
+        // for every record, get the static reference numbers
+        // read from json. if the static doesn't exist, populate
+        // if exists check if its still valid.
+        // from transactionUtils, call different utils: refdatautils
+        // RefDataUtils refresh every whatever options : time, if the last date detected is different from current date
+        // need to handle concurrency
+
+
 
         refData.print("********\n");
 

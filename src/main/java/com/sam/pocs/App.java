@@ -21,22 +21,22 @@ public class App {
         S3Client s3 = S3Client.builder().region(region).build();
 
 
-        String bucket = "dumbo-001";
+        String bucket = "bucket";
         String key = "sample_s3_file_1.json";
-        String prefix = "flink-stage";
+        String prefix = "prefix";
 
         InputStream s3Object = s3.getObject(GetObjectRequest.builder().bucket(bucket).key(key).build(),
                 ResponseTransformer.toInputStream());
 
         ObjectMapper objectMapper = new ObjectMapper();
         String jsonMap = objectMapper.readValue(s3Object, new TypeReference<Map>(){}).toString();
-        System.out.println(jsonMap);
+//        System.out.println(jsonMap);
 
-        List<S3Object> s3Objects = s3.listObjects(ListObjectsRequest.builder().bucket(bucket).prefix(prefix).build()).contents();
+        List<S3Object> s3Objects = s3.listObjects(ListObjectsRequest.builder().bucket(bucket).prefix(prefix).delimiter("").build()).contents();
         for(S3Object object: s3Objects) {
-            System.out.println(object.toString());
-            System.out.println(object.lastModified());
-            System.out.println(object.storageClassAsString());
+            System.out.println(object.key());
+//            System.out.println(object.lastModified());
+//            System.out.println(object.storageClassAsString());
         }
     }
 }
