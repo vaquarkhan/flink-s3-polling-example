@@ -64,7 +64,7 @@ public class LastModifiedS3DataSourceFunction<T> implements SourceFunction<T>, R
   //    Once processing is done for a given extract, the file will be deleted from the staging folder.
   //    Cons:
   //    - There will be a separate staging folder for the flink jobs
-  //    - Another process will have to populate the staging folder or Finacle will have to also send files to this staging folder.
+  //    - Another process will have to populate the staging folder or producer will have to also send files to this staging folder.
   //    Pros:
   //    - The Flink DAG will be very straightforward. All it would have to do is poll the s3 path
 
